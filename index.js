@@ -301,9 +301,18 @@ async function run() {
           },
         );
 
+        // Job not found
+        if (result.matchedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "Job not found",
+          });
+        }
+
         res.send({
           success: true,
           modifiedCount: result.modifiedCount,
+          message: "Job updated successfully",
         });
       } catch (error) {
         res.status(500).send({
