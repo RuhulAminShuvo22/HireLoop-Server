@@ -329,6 +329,14 @@ async function run() {
           _id: new ObjectId(id),
         });
 
+        // Job not found
+        if (result.deletedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "Job not found",
+          });
+        }
+
         res.send({
           success: true,
           deletedCount: result.deletedCount,
@@ -340,7 +348,6 @@ async function run() {
         });
       }
     });
-
     // ==========================
     // Root Route
     // ==========================
