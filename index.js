@@ -60,9 +60,16 @@ async function run() {
 
     await usersCollection.createIndex({ email: 1 }, { unique: true });
 
-    await companiesCollection.createIndex({ ownerEmail: 1 }, { unique: true });
-
-    await companiesCollection.createIndex({ companyName: 1 }, { unique: true });
+    // Compound Unique Index
+    await companiesCollection.createIndex(
+      {
+        ownerEmail: 1,
+        companyName: 1,
+      },
+      {
+        unique: true,
+      },
+    );
 
     // ==================================================
     // USERS API
@@ -259,6 +266,19 @@ async function run() {
       try {
         const email = req.params.email;
 
+        // Recruiter exists?
+        const recruiter = await usersCollection.findOne({
+          email,
+        });
+
+        if (!recruiter) {
+          return res.status(404).send({
+            success: false,
+            message: "Recruiter not found",
+          });
+        }
+
+        // Get recruiter's jobs
         const jobs = await jobsCollection
           .find({
             recruiterEmail: email,
@@ -268,12 +288,32 @@ async function run() {
           })
           .toArray();
 
+        // Attach company info
+        const jobsWithCompany = await Promise.all(
+          jobs.map(async (job) => {
+            let company = null;
+
+            if (ObjectId.isValid(job.companyId)) {
+              company = await companiesCollection.findOne({
+                _id: new ObjectId(job.companyId),
+              });
+            }
+
+            return {
+              ...job,
+              company,
+            };
+          }),
+        );
+
         res.send({
           success: true,
-          count: jobs.length,
-          jobs,
+          count: jobsWithCompany.length,
+          jobs: jobsWithCompany,
         });
       } catch (error) {
+        console.error("Recruiter Jobs Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
