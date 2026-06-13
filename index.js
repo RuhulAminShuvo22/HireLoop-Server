@@ -167,30 +167,30 @@ async function run() {
         }
 
         // Company check
-        // if (!ObjectId.isValid(job.companyId)) {
-        //   return res.status(400).send({
-        //     success: false,
-        //     message: "Invalid Company ID",
-        //   });
-        // }
+        if (!ObjectId.isValid(job.companyId)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid Company ID",
+          });
+        }
 
-        // const company = await companiesCollection.findOne({
-        //   _id: new ObjectId(job.companyId),
-        // });
+        const company = await companiesCollection.findOne({
+          _id: new ObjectId(job.companyId),
+        });
 
-        // if (!company) {
-        //   return res.status(404).send({
-        //     success: false,
-        //     message: "Company not found",
-        //   });
-        // }
+        if (!company) {
+          return res.status(404).send({
+            success: false,
+            message: "Company not found",
+          });
+        }
 
-        // if (!company.isApproved) {
-        //   return res.status(403).send({
-        //     success: false,
-        //     message: "Company is not approved yet",
-        //   });
-        // }
+        if (!company.isApproved) {
+          return res.status(403).send({
+            success: false,
+            message: "Company is not approved yet",
+          });
+        }
 
         // Insert Job
         const result = await jobsCollection.insertOne({
@@ -357,6 +357,279 @@ async function run() {
         });
       }
     });
+
+    // ==================================================
+    // COMPANY API
+    // ==================================================
+
+    // Register Company
+    app.post("/companies", async (req, res) => {
+      try {
+        const company = req.body;
+
+        if (!company.companyName || !company.ownerEmail) {
+          return res.status(400).send({
+            success: false,
+            message: "Company name and owner email are required",
+          });
+        }
+
+        // recruiter exists?
+        const user = await usersCollection.findOne({
+          email: company.ownerEmail,
+        });
+
+        if (!user) {
+          return res.status(404).send({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        // only recruiter
+        if (user.role !== "recruiter") {
+          return res.status(403).send({
+            success: false,
+            message: "Only recruiters can register companies",
+          });
+        }
+
+        // one recruiter = one company
+        const existingCompany = await companiesCollection.findOne({
+          ownerEmail: company.ownerEmail,
+        });
+
+        if (existingCompany) {
+          return res.status(400).send({
+            success: false,
+            message: "You already registered a company",
+          });
+        }
+
+        const result = await companiesCollection.insertOne({
+          ...company,
+
+          isApproved: false,
+
+          jobsPosted: 0,
+
+          jobLimit: 3,
+
+          plan: "Free",
+
+          createdAt: new Date(),
+
+          updatedAt: new Date(),
+        });
+
+        res.send({
+          success: true,
+          insertedId: result.insertedId,
+          message: "Company registered successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Get All Companies
+    app.get("/companies", async (req, res) => {
+      try {
+        const companies = await companiesCollection
+          .find()
+          .sort({
+            createdAt: -1,
+          })
+          .toArray();
+
+        res.send(companies);
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Get Company By Owner Email
+    app.get("/companies/owner/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const company = await companiesCollection.findOne({
+          ownerEmail: email,
+        });
+
+        if (!company) {
+          return res.status(404).send({
+            success: false,
+            message: "Company not found",
+          });
+        }
+
+        res.send(company);
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Get Single Company
+    app.get("/companies/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid company ID",
+          });
+        }
+
+        const company = await companiesCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!company) {
+          return res.status(404).send({
+            success: false,
+            message: "Company not found",
+          });
+        }
+
+        res.send(company);
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Update Company
+    app.patch("/companies/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid company ID",
+          });
+        }
+
+        const updatedCompany = req.body;
+
+        const result = await companiesCollection.updateOne(
+          {
+            _id: new ObjectId(id),
+          },
+          {
+            $set: {
+              ...updatedCompany,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "Company not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+          message: "Company updated successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Approve Company (Admin)
+    app.patch("/companies/approve/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid company ID",
+          });
+        }
+
+        const result = await companiesCollection.updateOne(
+          {
+            _id: new ObjectId(id),
+          },
+          {
+            $set: {
+              isApproved: true,
+              approvedAt: new Date(),
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+          message: "Company approved successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Delete Company
+    app.delete("/companies/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid company ID",
+          });
+        }
+
+        const result = await companiesCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "Company not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          deletedCount: result.deletedCount,
+          message: "Company deleted successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
     // ===========================
     // Root Route
     // ==========================
