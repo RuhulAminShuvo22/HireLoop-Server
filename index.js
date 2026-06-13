@@ -471,15 +471,35 @@ async function run() {
     // Get All Companies
     app.get("/companies", async (req, res) => {
       try {
+        const { status } = req.query;
+
+        let query = {};
+
+        // Approved Companies
+        if (status === "approved") {
+          query.isApproved = true;
+        }
+
+        // Pending Companies
+        if (status === "pending") {
+          query.isApproved = false;
+        }
+
         const companies = await companiesCollection
-          .find()
+          .find(query)
           .sort({
             createdAt: -1,
           })
           .toArray();
 
-        res.send(companies);
+        res.send({
+          success: true,
+          count: companies.length,
+          companies,
+        });
       } catch (error) {
+        console.error("Get Companies Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
