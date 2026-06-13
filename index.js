@@ -251,6 +251,36 @@ async function run() {
       }
     });
 
+    // ==================================================
+    // Get Recruiter's Jobs
+    // ==================================================
+
+    app.get("/recruiter/jobs/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const jobs = await jobsCollection
+          .find({
+            recruiterEmail: email,
+          })
+          .sort({
+            createdAt: -1,
+          })
+          .toArray();
+
+        res.send({
+          success: true,
+          count: jobs.length,
+          jobs,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
     // Get Single Job
     app.get("/jobs/:id", async (req, res) => {
       try {
@@ -417,15 +447,16 @@ async function run() {
           });
         }
 
-        // One Recruiter = One Company
+        // Same Owner + Same Company Name Check
         const existingCompany = await companiesCollection.findOne({
           ownerEmail: company.ownerEmail,
+          companyName: company.companyName,
         });
 
         if (existingCompany) {
-          return res.status(400).send({
+          return res.status(409).send({
             success: false,
-            message: "You already registered a company",
+            message: "You already registered this company",
           });
         }
 
