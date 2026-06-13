@@ -54,6 +54,16 @@ async function run() {
     const jobsCollection = db.collection("jobs");
     const companiesCollection = db.collection("companies");
 
+    // ==========================
+    // Database Indexes
+    // ==========================
+
+    await usersCollection.createIndex({ email: 1 }, { unique: true });
+
+    await companiesCollection.createIndex({ ownerEmail: 1 }, { unique: true });
+
+    await companiesCollection.createIndex({ companyName: 1 }, { unique: true });
+
     // ==================================================
     // USERS API
     // ==================================================
@@ -367,6 +377,7 @@ async function run() {
       try {
         const company = req.body;
 
+        // Required Fields
         if (!company.companyName || !company.ownerEmail) {
           return res.status(400).send({
             success: false,
@@ -374,7 +385,7 @@ async function run() {
           });
         }
 
-        // recruiter exists?
+        // User Exists?
         const user = await usersCollection.findOne({
           email: company.ownerEmail,
         });
@@ -386,7 +397,7 @@ async function run() {
           });
         }
 
-        // only recruiter
+        // Only Recruiters Can Register Companies
         if (user.role !== "recruiter") {
           return res.status(403).send({
             success: false,
@@ -394,7 +405,19 @@ async function run() {
           });
         }
 
-        // one recruiter = one company
+        // Company Name Already Exists
+        const existingCompanyName = await companiesCollection.findOne({
+          companyName: company.companyName,
+        });
+
+        if (existingCompanyName) {
+          return res.status(400).send({
+            success: false,
+            message: "Company name already exists",
+          });
+        }
+
+        // One Recruiter = One Company
         const existingCompany = await companiesCollection.findOne({
           ownerEmail: company.ownerEmail,
         });
@@ -406,6 +429,7 @@ async function run() {
           });
         }
 
+        // Create Company
         const result = await companiesCollection.insertOne({
           ...company,
 
@@ -428,13 +452,22 @@ async function run() {
           message: "Company registered successfully",
         });
       } catch (error) {
+        console.error("Company Registration Error:", error);
+
+        // MongoDB Duplicate Key Error
+        if (error.code === 11000) {
+          return res.status(400).send({
+            success: false,
+            message: "Duplicate company information detected",
+          });
+        }
+
         res.status(500).send({
           success: false,
           message: error.message,
         });
       }
     });
-
     // Get All Companies
     app.get("/companies", async (req, res) => {
       try {
