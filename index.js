@@ -640,15 +640,64 @@ async function run() {
       }
     });
 
-    // Approve Company (Admin)
+    // Approve Company (Admin Only)
     app.patch("/companies/approve/:id", async (req, res) => {
       try {
         const id = req.params.id;
+        const { adminEmail } = req.body;
 
+        // Validate Company ID
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
             message: "Invalid company ID",
+          });
+        }
+
+        // Admin Email Required
+        if (!adminEmail) {
+          return res.status(400).send({
+            success: false,
+            message: "Admin email is required",
+          });
+        }
+
+        // Check Admin
+        const admin = await usersCollection.findOne({
+          email: adminEmail,
+        });
+
+        if (!admin) {
+          return res.status(404).send({
+            success: false,
+            message: "Admin not found",
+          });
+        }
+
+        if (admin.role !== "admin") {
+          return res.status(403).send({
+            success: false,
+            message: "Only admins can approve companies",
+          });
+        }
+
+        // Check Company Exists
+        const company = await companiesCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!company) {
+          return res.status(404).send({
+            success: false,
+            message: "Company not found",
+          });
+        }
+
+        // Already Approved?
+        if (company.isApproved) {
+          return res.status(400).send({
+            success: false,
+            message: "Company is already approved",
           });
         }
 
@@ -660,6 +709,8 @@ async function run() {
             $set: {
               isApproved: true,
               approvedAt: new Date(),
+              approvedBy: adminEmail,
+              updatedAt: new Date(),
             },
           },
         );
@@ -670,6 +721,8 @@ async function run() {
           message: "Company approved successfully",
         });
       } catch (error) {
+        console.error("Approve Company Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
@@ -678,10 +731,12 @@ async function run() {
     });
 
     // Delete Company
+    // Delete Company
     app.delete("/companies/:id", async (req, res) => {
       try {
         const id = req.params.id;
 
+        // Validate ID
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -689,30 +744,42 @@ async function run() {
           });
         }
 
-        const result = await companiesCollection.deleteOne({
+        // Check company exists
+        const company = await companiesCollection.findOne({
           _id: new ObjectId(id),
         });
 
-        if (result.deletedCount === 0) {
+        if (!company) {
           return res.status(404).send({
             success: false,
             message: "Company not found",
           });
         }
 
+        // OPTIONAL SAFETY: delete related jobs first
+        await jobsCollection.deleteMany({
+          companyId: id,
+        });
+
+        // Delete company
+        const result = await companiesCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
         res.send({
           success: true,
           deletedCount: result.deletedCount,
-          message: "Company deleted successfully",
+          message: "Company and related jobs deleted successfully",
         });
       } catch (error) {
+        console.error("Delete Company Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
         });
       }
     });
-
     // ===========================
     // Root Route
     // ==========================
