@@ -167,30 +167,30 @@ async function run() {
         }
 
         // Company check
-        if (!ObjectId.isValid(job.companyId)) {
-          return res.status(400).send({
-            success: false,
-            message: "Invalid Company ID",
-          });
-        }
+        // if (!ObjectId.isValid(job.companyId)) {
+        //   return res.status(400).send({
+        //     success: false,
+        //     message: "Invalid Company ID",
+        //   });
+        // }
 
-        const company = await companiesCollection.findOne({
-          _id: new ObjectId(job.companyId),
-        });
+        // const company = await companiesCollection.findOne({
+        //   _id: new ObjectId(job.companyId),
+        // });
 
-        if (!company) {
-          return res.status(404).send({
-            success: false,
-            message: "Company not found",
-          });
-        }
+        // if (!company) {
+        //   return res.status(404).send({
+        //     success: false,
+        //     message: "Company not found",
+        //   });
+        // }
 
-        if (!company.isApproved) {
-          return res.status(403).send({
-            success: false,
-            message: "Company is not approved yet",
-          });
-        }
+        // if (!company.isApproved) {
+        //   return res.status(403).send({
+        //     success: false,
+        //     message: "Company is not approved yet",
+        //   });
+        // }
 
         // Insert Job
         const result = await jobsCollection.insertOne({
