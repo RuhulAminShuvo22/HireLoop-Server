@@ -512,6 +512,13 @@ async function run() {
       try {
         const email = req.params.email;
 
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message: "Email is required",
+          });
+        }
+
         const company = await companiesCollection.findOne({
           ownerEmail: email,
         });
@@ -523,8 +530,13 @@ async function run() {
           });
         }
 
-        res.send(company);
+        res.send({
+          success: true,
+          company,
+        });
       } catch (error) {
+        console.error("Get Company By Owner Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
@@ -537,6 +549,7 @@ async function run() {
       try {
         const id = req.params.id;
 
+        // Validate Company ID
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -555,8 +568,13 @@ async function run() {
           });
         }
 
-        res.send(company);
+        res.send({
+          success: true,
+          company,
+        });
       } catch (error) {
+        console.error("Get Company Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
@@ -569,6 +587,7 @@ async function run() {
       try {
         const id = req.params.id;
 
+        // Validate Company ID
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -577,6 +596,15 @@ async function run() {
         }
 
         const updatedCompany = req.body;
+
+        // Protected Fields
+        delete updatedCompany._id;
+        delete updatedCompany.ownerEmail;
+        delete updatedCompany.isApproved;
+        delete updatedCompany.plan;
+        delete updatedCompany.jobsPosted;
+        delete updatedCompany.jobLimit;
+        delete updatedCompany.createdAt;
 
         const result = await companiesCollection.updateOne(
           {
@@ -603,6 +631,8 @@ async function run() {
           message: "Company updated successfully",
         });
       } catch (error) {
+        console.error("Update Company Error:", error);
+
         res.status(500).send({
           success: false,
           message: error.message,
