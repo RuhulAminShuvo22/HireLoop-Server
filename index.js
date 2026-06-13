@@ -782,7 +782,7 @@ async function run() {
     });
     // ===========================
     // Root Route
-    // ==========================
+    // ===========================
     app.get("/", (req, res) => {
       res.send("🚀 HireLoop Server Running...");
     });
