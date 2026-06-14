@@ -141,6 +141,45 @@ async function run() {
       }
     });
 
+    // Update User Profile
+    app.patch("/users/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const { name, image } = req.body;
+
+        const result = await usersCollection.updateOne(
+          {
+            email,
+          },
+          {
+            $set: {
+              name,
+              image,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+          message: "Profile updated successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
     // ==================================================
     // JOBS API
     // ==================================================
