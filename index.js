@@ -539,7 +539,7 @@ async function run() {
         });
       }
     });
-    // Get All Companies
+    // Get All Companies//
     app.get("/companies", async (req, res) => {
       try {
         const { status } = req.query;
