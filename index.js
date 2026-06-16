@@ -1006,7 +1006,7 @@ async function run() {
       }
     });
 
-    //Get Applications (Applicant)
+    //Get Applications (Applicant)//
     app.get("/applications/applicant/:email", async (req, res) => {
       try {
         const email = req.params.email;
