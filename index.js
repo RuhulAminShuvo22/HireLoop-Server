@@ -985,6 +985,42 @@ async function run() {
       }
     });
 
+    //4. Update Status (Accept / Reject)
+    app.patch("/applications/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid application ID",
+          });
+        }
+
+        const result = await applicationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+          message: "Application status updated",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
     // ===========================
     // Root Route
     // ===========================
