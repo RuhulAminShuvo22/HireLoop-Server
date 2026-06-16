@@ -891,9 +891,53 @@ async function run() {
       }
     });
 
-    // =================================================
-    // APPLY API
-    // =================================================
+    // ===========================
+    // APPLICATIONS API
+    // ===========================
+
+    // Create Application
+    app.post("/applications", async (req, res) => {
+      try {
+        const application = req.body;
+
+        const result = await db.collection("applications").insertOne({
+          ...application,
+          createdAt: new Date(),
+        });
+
+        res.send({
+          success: true,
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // Get All Applications
+    app.get("/applications", async (req, res) => {
+      try {
+        const applications = await db
+          .collection("applications")
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send({
+          success: true,
+          count: applications.length,
+          applications,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
 
     //Apply Job (POST)
     app.post("/applications", async (req, res) => {
