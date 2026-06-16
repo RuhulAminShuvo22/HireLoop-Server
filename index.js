@@ -962,6 +962,29 @@ async function run() {
       }
     });
 
+    //Get Applications (Applicant)
+    app.get("/applications/applicant/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const applications = await applicationsCollection
+          .find({ applicantEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send({
+          success: true,
+          count: applications.length,
+          applications,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
     // ===========================
     // Root Route
     // ===========================
