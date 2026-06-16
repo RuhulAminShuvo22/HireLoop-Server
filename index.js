@@ -53,6 +53,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const jobsCollection = db.collection("jobs");
     const companiesCollection = db.collection("companies");
+    const applicationsCollection = db.collection("applications");
 
     // ==========================
     // Database Indexes
@@ -841,7 +842,6 @@ async function run() {
     });
 
     // Delete Company
-    // Delete Company
     app.delete("/companies/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -890,6 +890,55 @@ async function run() {
         });
       }
     });
+
+    // =================================================
+    // APPLY API
+    // =================================================
+
+    //Apply Job (POST)
+    app.post("/applications", async (req, res) => {
+      try {
+        const application = req.body;
+
+        // Required check
+        if (!application.jobId || !application.applicantEmail) {
+          return res.status(400).send({
+            success: false,
+            message: "Job ID and Applicant Email required",
+          });
+        }
+
+        // Prevent duplicate apply
+        const existing = await applicationsCollection.findOne({
+          jobId: application.jobId,
+          applicantEmail: application.applicantEmail,
+        });
+
+        if (existing) {
+          return res.status(409).send({
+            success: false,
+            message: "You already applied for this job",
+          });
+        }
+
+        const result = await applicationsCollection.insertOne({
+          ...application,
+          createdAt: new Date(),
+        });
+
+        res.send({
+          success: true,
+          insertedId: result.insertedId,
+          message: "Application submitted successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
     // ===========================
     // Root Route
     // ===========================
