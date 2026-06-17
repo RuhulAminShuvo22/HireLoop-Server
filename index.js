@@ -72,6 +72,65 @@ async function run() {
       },
     );
 
+    // ======================================
+    // STRIPE CHECKOUT SESSION
+    // ======================================
+
+    app.post("/create-checkout-session", async (req, res) => {
+      try {
+        const { planId } = req.body;
+
+        const selectedPlan = plans[planId];
+
+        if (!selectedPlan) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid plan selected",
+          });
+        }
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+
+                product_data: {
+                  name: selectedPlan.name,
+                },
+
+                unit_amount: selectedPlan.amount,
+              },
+
+              quantity: 1,
+            },
+          ],
+
+          mode: "payment",
+
+          success_url:
+            "http://localhost:3000/pricing/success?session_id={CHECKOUT_SESSION_ID}",
+
+          cancel_url: "http://localhost:3000/pricing",
+        });
+
+        res.send({
+          success: true,
+          url: session.url,
+        });
+      } catch (error) {
+        console.error("Stripe Error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+
     // ==================================================
     // USERS API
     // ==================================================
