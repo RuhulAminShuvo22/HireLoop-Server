@@ -55,6 +55,33 @@ async function run() {
     const companiesCollection = db.collection("companies");
     const applicationsCollection = db.collection("applications");
 
+    
+    // ==========================
+    // Subscription Plans
+    // ==========================
+
+    const plans = {
+      "job-pro": {
+        name: "Job Pro",
+        amount: 1900,
+      },
+
+      "job-premium": {
+        name: "Job Premium",
+        amount: 3900,
+      },
+
+      "recruiter-growth": {
+        name: "Recruiter Growth",
+        amount: 4900,
+      },
+
+      "recruiter-enterprise": {
+        name: "Recruiter Enterprise",
+        amount: 14900,
+      },
+    };
+
     // ==========================
     // Database Indexes
     // ==========================
