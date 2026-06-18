@@ -546,12 +546,9 @@ async function run() {
       }
     });
 
-    // ==================================================
+    
     // Get Recruiter's Jobs
-    // ==================================================
-    // =====================================
-    // Get Recruiter's Jobs
-    // =====================================
+    
     app.get("/recruiter/jobs/:email", async (req, res) => {
       try {
         const { email } = req.params;
