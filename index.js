@@ -41,7 +41,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     console.log("✅ MongoDB Connected Successfully");
 
@@ -138,7 +138,6 @@ async function run() {
             },
           ],
 
-          // User and plan information
           metadata: {
             planId,
             userEmail,
@@ -146,10 +145,9 @@ async function run() {
 
           mode: "payment",
 
-          success_url:
-            "http://localhost:3000/pricing/success?session_id={CHECKOUT_SESSION_ID}",
+          success_url: `${process.env.CLIENT_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
 
-          cancel_url: "http://localhost:3000/pricing",
+          cancel_url: `${process.env.CLIENT_URL}/pricing`,
         });
 
         res.send({
@@ -548,18 +546,14 @@ async function run() {
       }
     });
 
-    // ==================================================
+    
     // Get Recruiter's Jobs
-    // ==================================================
-
+    
     app.get("/recruiter/jobs/:email", async (req, res) => {
       try {
-        const email = req.params.email;
+        const { email } = req.params;
 
-        // Recruiter exists?
-        const recruiter = await usersCollection.findOne({
-          email,
-        });
+        const recruiter = await usersCollection.findOne({ email });
 
         if (!recruiter) {
           return res.status(404).send({
@@ -568,7 +562,6 @@ async function run() {
           });
         }
 
-        // Get recruiter's jobs
         const jobs = await jobsCollection
           .find({
             recruiterEmail: email,
@@ -578,12 +571,11 @@ async function run() {
           })
           .toArray();
 
-        // Attach company info
         const jobsWithCompany = await Promise.all(
           jobs.map(async (job) => {
             let company = null;
 
-            if (ObjectId.isValid(job.companyId)) {
+            if (job.companyId && ObjectId.isValid(job.companyId)) {
               company = await companiesCollection.findOne({
                 _id: new ObjectId(job.companyId),
               });
@@ -611,12 +603,13 @@ async function run() {
       }
     });
 
+    // =====================================
     // Get Single Job
+    // =====================================
     app.get("/jobs/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
 
-        // Validate ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -635,7 +628,10 @@ async function run() {
           });
         }
 
-        res.send(job);
+        res.send({
+          success: true,
+          job,
+        });
       } catch (error) {
         res.status(500).send({
           success: false,
@@ -644,12 +640,13 @@ async function run() {
       }
     });
 
+    // =====================================
     // Update Job
+    // =====================================
     app.patch("/jobs/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
 
-        // Validate ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -658,6 +655,8 @@ async function run() {
         }
 
         const updatedJob = req.body;
+
+        delete updatedJob._id;
 
         const result = await jobsCollection.updateOne(
           {
@@ -671,7 +670,6 @@ async function run() {
           },
         );
 
-        // Job not found
         if (result.matchedCount === 0) {
           return res.status(404).send({
             success: false,
@@ -691,12 +689,14 @@ async function run() {
         });
       }
     });
+
+    // =====================================
     // Delete Job
+    // =====================================
     app.delete("/jobs/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
 
-        // Validate ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -708,7 +708,6 @@ async function run() {
           _id: new ObjectId(id),
         });
 
-        // Job not found
         if (result.deletedCount === 0) {
           return res.status(404).send({
             success: false,
@@ -719,6 +718,7 @@ async function run() {
         res.send({
           success: true,
           deletedCount: result.deletedCount,
+          message: "Job deleted successfully",
         });
       } catch (error) {
         res.status(500).send({
@@ -727,7 +727,6 @@ async function run() {
         });
       }
     });
-
     // =================================================
     // COMPANY API
     // =================================================
@@ -1145,19 +1144,43 @@ async function run() {
     // APPLICATIONS API
     // ===========================
 
-    // Create Application
+    // Create Application (Apply Job)
+
     app.post("/applications", async (req, res) => {
       try {
         const application = req.body;
 
-        const result = await db.collection("applications").insertOne({
+        // Required fields validation
+        if (!application.jobId || !application.applicantEmail) {
+          return res.status(400).send({
+            success: false,
+            message: "Job ID and Applicant Email are required",
+          });
+        }
+
+        // Prevent duplicate application
+        const existingApplication = await applicationsCollection.findOne({
+          jobId: application.jobId,
+          applicantEmail: application.applicantEmail,
+        });
+
+        if (existingApplication) {
+          return res.status(409).send({
+            success: false,
+            message: "You already applied for this job",
+          });
+        }
+
+        const result = await applicationsCollection.insertOne({
           ...application,
+          status: application.status || "Pending",
           createdAt: new Date(),
         });
 
         res.send({
           success: true,
           insertedId: result.insertedId,
+          message: "Application submitted successfully",
         });
       } catch (error) {
         res.status(500).send({
@@ -1167,11 +1190,12 @@ async function run() {
       }
     });
 
+    // ===============================
     // Get All Applications
+    // ===============================
     app.get("/applications", async (req, res) => {
       try {
-        const applications = await db
-          .collection("applications")
+        const applications = await applicationsCollection
           .find()
           .sort({ createdAt: -1 })
           .toArray();
@@ -1189,54 +1213,12 @@ async function run() {
       }
     });
 
-    //Apply Job (POST)
-    app.post("/applications", async (req, res) => {
-      try {
-        const application = req.body;
-
-        // Required check
-        if (!application.jobId || !application.applicantEmail) {
-          return res.status(400).send({
-            success: false,
-            message: "Job ID and Applicant Email required",
-          });
-        }
-
-        // Prevent duplicate apply
-        const existing = await applicationsCollection.findOne({
-          jobId: application.jobId,
-          applicantEmail: application.applicantEmail,
-        });
-
-        if (existing) {
-          return res.status(409).send({
-            success: false,
-            message: "You already applied for this job",
-          });
-        }
-
-        const result = await applicationsCollection.insertOne({
-          ...application,
-          createdAt: new Date(),
-        });
-
-        res.send({
-          success: true,
-          insertedId: result.insertedId,
-          message: "Application submitted successfully",
-        });
-      } catch (error) {
-        res.status(500).send({
-          success: false,
-          message: error.message,
-        });
-      }
-    });
-
-    //Get Applications (Recruiter)
+    // ===============================
+    // Get Recruiter's Applications
+    // ===============================
     app.get("/applications/recruiter/:email", async (req, res) => {
       try {
-        const email = req.params.email;
+        const { email } = req.params;
 
         const applications = await applicationsCollection
           .find({ recruiterEmail: email })
@@ -1256,10 +1238,12 @@ async function run() {
       }
     });
 
-    //Get Applications (Applicant)//
+    // ===============================
+    // Get Applicant's Applications
+    // ===============================
     app.get("/applications/applicant/:email", async (req, res) => {
       try {
-        const email = req.params.email;
+        const { email } = req.params;
 
         const applications = await applicationsCollection
           .find({ applicantEmail: email })
@@ -1279,16 +1263,27 @@ async function run() {
       }
     });
 
-    //4. Update Status (Accept / Reject)
+    // ===============================
+    // Update Application Status
+    // ===============================
     app.patch("/applications/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
         const { status } = req.body;
 
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
             message: "Invalid application ID",
+          });
+        }
+
+        const allowedStatuses = ["Pending", "Accepted", "Rejected"];
+
+        if (!allowedStatuses.includes(status)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid status value",
           });
         }
 
@@ -1302,10 +1297,17 @@ async function run() {
           },
         );
 
+        if (result.matchedCount === 0) {
+          return res.status(404).send({
+            success: false,
+            message: "Application not found",
+          });
+        }
+
         res.send({
           success: true,
           modifiedCount: result.modifiedCount,
-          message: "Application status updated",
+          message: "Application status updated successfully",
         });
       } catch (error) {
         res.status(500).send({
@@ -1314,7 +1316,6 @@ async function run() {
         });
       }
     });
-
     // ===========================
     // Root Route
     // ===========================
@@ -1325,6 +1326,7 @@ async function run() {
     // ==========================
     // MongoDB Ping Test
     // ==========================
+
     await client.db("admin").command({ ping: 1 });
 
     console.log("✅ MongoDB Ping Successful");
@@ -1341,3 +1343,4 @@ run().catch(console.dir);
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+// module.exports = app;
