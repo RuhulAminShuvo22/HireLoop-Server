@@ -57,6 +57,7 @@ async function run() {
     const jobsCollection = db.collection("jobs");
     const companiesCollection = db.collection("companies");
     const applicationsCollection = db.collection("applications");
+    const paymentsCollection = db.collection("payments");
 
     // ==========================
     // Subscription Plans
@@ -146,7 +147,7 @@ async function run() {
           mode: "payment",
 
           success_url:
-            "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}",
+            "http://localhost:3000/pricing/success?session_id={CHECKOUT_SESSION_ID}",
 
           cancel_url: "http://localhost:3000/pricing",
         });
@@ -157,6 +158,162 @@ async function run() {
         });
       } catch (error) {
         console.error("Stripe Error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+    // ======================================
+    //verify-payment
+    // ======================================
+    app.get("/verify-payment", async (req, res) => {
+      try {
+        const { session_id } = req.query;
+
+        if (!session_id) {
+          return res.status(400).send({
+            success: false,
+            message: "Session ID is required",
+          });
+        }
+
+        // Duplicate payment protection
+        const existingPayment = await paymentsCollection.findOne({
+          stripeSessionId: session_id,
+        });
+
+        if (existingPayment) {
+          return res.send({
+            success: true,
+            message: "Payment already verified",
+          });
+        }
+
+        // Get payment information from Stripe
+        const stripeSession =
+          await stripe.checkout.sessions.retrieve(session_id);
+
+        // Payment success check
+        if (stripeSession.payment_status !== "paid") {
+          return res.status(400).send({
+            success: false,
+            message: "Payment not completed",
+          });
+        }
+
+        // Get metadata
+        const userEmail = stripeSession.metadata.userEmail;
+        const planId = stripeSession.metadata.planId;
+
+        if (!userEmail || !planId) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid payment metadata",
+          });
+        }
+
+        // Update user subscription
+        await usersCollection.updateOne(
+          {
+            email: userEmail,
+          },
+          {
+            $set: {
+              subscriptionPlan: planId,
+              subscriptionStatus: "active",
+              upgradedAt: new Date(),
+            },
+          },
+        );
+
+        // Save payment history
+        await paymentsCollection.insertOne({
+          userEmail,
+          planId,
+          stripeSessionId: session_id,
+          amount: stripeSession.amount_total / 100,
+          currency: stripeSession.currency,
+          paymentStatus: stripeSession.payment_status,
+          paidAt: new Date(),
+        });
+
+        res.send({
+          success: true,
+          message: "Payment verified and account upgraded",
+        });
+      } catch (error) {
+        console.error("Verify Payment Error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: error.message,
+        });
+      }
+    });
+
+    // ======================================
+    // MY BILLING INFORMATION
+    // ======================================
+
+    app.get("/my-billing", async (req, res) => {
+      try {
+        const { email } = req.query;
+
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message: "Email is required",
+          });
+        }
+
+        // Find user
+        const user = await usersCollection.findOne(
+          {
+            email,
+          },
+          {
+            projection: {
+              subscriptionPlan: 1,
+              subscriptionStatus: 1,
+              upgradedAt: 1,
+            },
+          },
+        );
+
+        if (!user) {
+          return res.status(404).send({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        // Get payment history
+        const payments = await paymentsCollection
+          .find({
+            userEmail: email,
+          })
+          .sort({
+            paidAt: -1,
+          })
+          .toArray();
+
+        res.send({
+          success: true,
+
+          subscription: {
+            plan: user.subscriptionPlan || "Free",
+
+            status: user.subscriptionStatus || "inactive",
+
+            upgradedAt: user.upgradedAt || null,
+          },
+
+          payments,
+        });
+      } catch (error) {
+        console.error("Billing Error:", error);
 
         res.status(500).send({
           success: false,
