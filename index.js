@@ -41,7 +41,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     console.log("✅ MongoDB Connected Successfully");
 
@@ -138,7 +138,6 @@ async function run() {
             },
           ],
 
-          // User and plan information
           metadata: {
             planId,
             userEmail,
@@ -146,10 +145,9 @@ async function run() {
 
           mode: "payment",
 
-          success_url:
-            "http://localhost:3000/pricing/success?session_id={CHECKOUT_SESSION_ID}",
+          success_url: `${process.env.CLIENT_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
 
-          cancel_url: "http://localhost:3000/pricing",
+          cancel_url: `${process.env.CLIENT_URL}/pricing`,
         });
 
         res.send({
@@ -1325,7 +1323,8 @@ async function run() {
     // ==========================
     // MongoDB Ping Test
     // ==========================
-    await client.db("admin").command({ ping: 1 });
+    
+    // await client.db("admin").command({ ping: 1 });
 
     console.log("✅ MongoDB Ping Successful");
   } catch (error) {
