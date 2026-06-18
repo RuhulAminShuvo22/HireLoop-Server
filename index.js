@@ -549,15 +549,14 @@ async function run() {
     // ==================================================
     // Get Recruiter's Jobs
     // ==================================================
-
+    // =====================================
+    // Get Recruiter's Jobs
+    // =====================================
     app.get("/recruiter/jobs/:email", async (req, res) => {
       try {
-        const email = req.params.email;
+        const { email } = req.params;
 
-        // Recruiter exists?
-        const recruiter = await usersCollection.findOne({
-          email,
-        });
+        const recruiter = await usersCollection.findOne({ email });
 
         if (!recruiter) {
           return res.status(404).send({
@@ -566,7 +565,6 @@ async function run() {
           });
         }
 
-        // Get recruiter's jobs
         const jobs = await jobsCollection
           .find({
             recruiterEmail: email,
@@ -576,12 +574,11 @@ async function run() {
           })
           .toArray();
 
-        // Attach company info
         const jobsWithCompany = await Promise.all(
           jobs.map(async (job) => {
             let company = null;
 
-            if (ObjectId.isValid(job.companyId)) {
+            if (job.companyId && ObjectId.isValid(job.companyId)) {
               company = await companiesCollection.findOne({
                 _id: new ObjectId(job.companyId),
               });
@@ -609,12 +606,13 @@ async function run() {
       }
     });
 
+    // =====================================
     // Get Single Job
+    // =====================================
     app.get("/jobs/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
 
-        // Validate ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -633,7 +631,10 @@ async function run() {
           });
         }
 
-        res.send(job);
+        res.send({
+          success: true,
+          job,
+        });
       } catch (error) {
         res.status(500).send({
           success: false,
@@ -642,12 +643,13 @@ async function run() {
       }
     });
 
+    // =====================================
     // Update Job
+    // =====================================
     app.patch("/jobs/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
 
-        // Validate ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -656,6 +658,8 @@ async function run() {
         }
 
         const updatedJob = req.body;
+
+        delete updatedJob._id;
 
         const result = await jobsCollection.updateOne(
           {
@@ -669,7 +673,6 @@ async function run() {
           },
         );
 
-        // Job not found
         if (result.matchedCount === 0) {
           return res.status(404).send({
             success: false,
@@ -689,12 +692,14 @@ async function run() {
         });
       }
     });
+
+    // =====================================
     // Delete Job
+    // =====================================
     app.delete("/jobs/:id", async (req, res) => {
       try {
-        const id = req.params.id;
+        const { id } = req.params;
 
-        // Validate ObjectId
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
             success: false,
@@ -706,7 +711,6 @@ async function run() {
           _id: new ObjectId(id),
         });
 
-        // Job not found
         if (result.deletedCount === 0) {
           return res.status(404).send({
             success: false,
@@ -717,6 +721,7 @@ async function run() {
         res.send({
           success: true,
           deletedCount: result.deletedCount,
+          message: "Job deleted successfully",
         });
       } catch (error) {
         res.status(500).send({
@@ -725,7 +730,6 @@ async function run() {
         });
       }
     });
-
     // =================================================
     // COMPANY API
     // =================================================
@@ -1142,9 +1146,9 @@ async function run() {
     // ===========================
     // APPLICATIONS API
     // ===========================
-    // ===============================
+
     // Create Application (Apply Job)
-    // ===============================
+
     app.post("/applications", async (req, res) => {
       try {
         const application = req.body;
